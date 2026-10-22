@@ -122,8 +122,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0F0F0F),
       appBar: AppBar(
         title: const Text('SCANNER BOT - AI Analysis'),
+        backgroundColor: const Color(0xFF161616),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -136,7 +138,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade800),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.4), width: 1.5),
               ),
               child: _imageFile != null
                   ? ClipRRect(
@@ -146,7 +148,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset('assets/images/8.png', width: 64, height: 64),
+                        Image.asset('assets/images/8.jpg', width: 64, height: 64),
                         const SizedBox(height: 12),
                         const Text('เลือกหรือถ่ายภาพหน้าจอกราฟเพื่อสแกน', style: TextStyle(color: Colors.grey)),
                       ],
@@ -176,7 +178,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     label: const Text('ถ่ายภาพ'),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: const Color(0xFF2196F3),
+                      backgroundColor: const Color(0xFFE50914),
                     ),
                   ),
                 ),
@@ -190,84 +192,149 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 padding: EdgeInsets.all(32.0),
                 child: Column(
                   children: [
-                    CircularProgressIndicator(),
+                    CircularProgressIndicator(color: Colors.redAccent),
                     SizedBox(height: 16),
                     Text('AI กำลังแกะรอยและสแกนกราฟ...', style: TextStyle(color: Colors.grey)),
                   ],
                 ),
               )
             else if (_analysisResult != null)
-              _buildResultCard(_analysisResult!),
+              CyberNeonResultBox(result: _analysisResult!),
           ],
         ),
       ),
     );
   }
+}
 
-  // การ์ดแสดงผลลัพธ์การวิเคราะห์
-  Widget _buildResultCard(Map<String, dynamic> result) {
-    final signal = result['signal'] ?? 'Neutral';
+// Widget กล่องไซเบอร์พังค์ขอบเรืองแสงพร้อมเอฟเฟกต์พิมพ์ดีด
+class CyberNeonResultBox extends StatefulWidget {
+  final Map<String, dynamic> result;
+  const CyberNeonResultBox({super.key, required this.result});
+
+  @override
+  State<CyberNeonResultBox> createState() => _CyberNeonResultBoxState();
+}
+
+class _CyberNeonResultBoxState extends State<CyberNeonResultBox> with SingleTickerProviderStateMixin {
+  String _displayedText = '';
+  int _currentIndex = 0;
+  late String _fullText;
+  bool _isTypingComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final signal = widget.result['signal'] ?? 'Neutral';
+    final trend = widget.result['trend'] ?? '-';
+    final entry = widget.result['entry_zone'] ?? '-';
+    final sl = widget.result['stop_loss'] ?? '-';
+    final tp = widget.result['take_profit'] ?? '-';
+    
+    List reasons = widget.result['reasoning'] ?? [];
+    String reasonText = reasons.map((r) => '• $r').join('\n');
+
+    // จัดรูปแบบข้อความที่จะให้พิมพ์ดีดโชว์
+    _fullText = "> SIGNAL: $signal\n> TREND: $trend\n> ENTRY ZONE: $entry\n> STOP LOSS: $sl\n> TAKE PROFIT: $tp\n\n[ANALYSIS REASONING]:\n$reasonText";
+    
+    _startTypingEffect();
+  }
+
+  void _startTypingEffect() {
+    Future.delayed(const Duration(milliseconds: 30), () {
+      if (_currentIndex < _fullText.length && mounted) {
+        setState(() {
+          _displayedText += _fullText[_currentIndex];
+          _currentIndex++;
+        });
+        _startTypingEffect();
+      } else {
+        setState(() {
+          _isTypingComplete = true;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final signal = widget.result['signal'] ?? 'Neutral';
     Color signalColor = Colors.grey;
-    if (signal.toString().toUpperCase() == 'BUY') signalColor = Colors.green;
-    if (signal.toString().toUpperCase() == 'SELL') signalColor = Colors.red;
+    if (signal.toString().toUpperCase() == 'BUY') signalColor = Colors.greenAccent;
+    if (signal.toString().toUpperCase() == 'SELL') signalColor = Colors.redAccent;
 
-    return Card(
-      elevation: 4,
-      color: const Color(0xFF1E1E1E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Signal: $signal',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: signalColor),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text('Trend: ${result['trend'] ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-            const Divider(height: 24, color: Colors.grey),
-            _buildInfoRow('Entry Zone', result['entry_zone'] ?? '-'),
-            _buildInfoRow('Stop Loss', result['stop_loss'] ?? '-', color: Colors.redAccent),
-            _buildInfoRow('Take Profit', result['take_profit'] ?? '-', color: Colors.greenAccent),
-            const SizedBox(height: 16),
-            const Text('เหตุผลการวิเคราะห์:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            ...?((result['reasoning'] as List?)?.map((r) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('• ', style: TextStyle(color: Colors.blue)),
-                      Expanded(child: Text(r.toString(), style: const TextStyle(color: Colors.white70))),
-                    ],
-                  ),
-                ))),
-          ],
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141414),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.redAccent, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.redAccent.withOpacity(0.4),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(String title, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color ?? Colors.white)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(
+                      color: Colors.greenAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'AI SCANNER TERMINAL',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: signalColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: signalColor),
+                ),
+                child: Text(
+                  signal.toString().toUpperCase(),
+                  style: TextStyle(color: signalColor, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 24, color: Colors.redAccent),
+          // แสดงผลแบบพิมพ์ดีดฟอนต์โมโนสเปซ
+          Text(
+            _displayedText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontFamily: 'monospace',
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          if (!_isTypingComplete)
+            const Text(
+              '▋',
+              style: TextStyle(color: Colors.redAccent, fontSize: 14),
+            ),
         ],
       ),
     );
