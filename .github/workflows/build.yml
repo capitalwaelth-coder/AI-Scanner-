@@ -96,8 +96,15 @@ jobs:
       - name: Verify APK signature
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
+
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
-          test -n "$APKSIGNER"
+
+          if [ -z "$APKSIGNER" ]; then
+            echo "ERROR: apksigner not found"
+            exit 1
+          fi
+
+          echo "Checking APK signature..."
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       # 14. อัปโหลด APK
