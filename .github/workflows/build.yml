@@ -70,18 +70,29 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # 9. สร้าง APK
+      # 9. ตรวจสอบรูปและติดตั้งเครื่องมือสร้างไอคอน
+      - name: Install launcher icon generator
+        run: |
+          test -f assets/images/8.jpg
+          dart pub global activate flutter_launcher_icons
+
+      # 10. สร้างไอคอนจากรูป 8.jpg
+      - name: Generate app launcher icons
+        run: |
+          dart pub global run flutter_launcher_icons:main
+
+      # 11. สร้าง APK
       - name: Build release APK
         run: flutter build apk --release
 
-      # 10. ตรวจสอบว่า APK มีอยู่จริง
+      # 12. ตรวจสอบไฟล์ APK
       - name: Check APK file
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
           ls -lh "$APK"
 
-      # 11. ตรวจสอบลายเซ็น APK
+      # 13. ตรวจสอบลายเซ็น APK
       - name: Verify APK signature
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
@@ -89,10 +100,10 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      # 12. อัปโหลด APK
+      # 14. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SCANNER-BOT
+          name: AI-SCANNER
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
