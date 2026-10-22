@@ -1,3 +1,4 @@
+
 name: Build Flutter APK
 
 on:
@@ -42,6 +43,7 @@ jobs:
 
       # 4. ตรวจสอบไฟล์โปรเจกต์
       - name: Validate project
+        shell: bash
         run: |
           set -e
           test -f pubspec.yaml
@@ -50,7 +52,7 @@ jobs:
           test -f assets/images/8.jpg
           echo "Project files verified."
 
-      # 5. ซ่อม Gradle Wrapper หากไฟล์ขาด
+      # 5. ซ่อม Gradle Wrapper และกำหนดเวอร์ชัน 8.14.0
       - name: Repair Android Gradle Wrapper
         shell: bash
         run: |
@@ -70,8 +72,12 @@ jobs:
 
             mkdir -p android/gradle/wrapper
 
-            cp /tmp/scannerbot_template/android/gradlew android/gradlew
-            cp /tmp/scannerbot_template/android/gradlew.bat android/gradlew.bat
+            cp /tmp/scannerbot_template/android/gradlew \
+              android/gradlew
+
+            cp /tmp/scannerbot_template/android/gradlew.bat \
+              android/gradlew.bat
+
             cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar \
               android/gradle/wrapper/gradle-wrapper.jar
 
@@ -83,9 +89,13 @@ jobs:
 
           chmod +x android/gradlew
 
-          # กำหนด Gradle Wrapper เป็น 8.14
+          # กำหนด Gradle เป็น 8.14.0
           sed -i -E \
-            's#gradle-[0-9][^/]*-(all|bin)\.zip#gradle-8.14-\1.zip#' \
+            's#gradle-[0-9][^/]*-(all|bin)\.zip#gradle-8.14.0-\1.zip#' \
+            android/gradle/wrapper/gradle-wrapper.properties
+
+          # ตรวจสอบไฟล์และเวอร์ชัน
+          grep -q 'gradle-8.14.0-bin.zip' \
             android/gradle/wrapper/gradle-wrapper.properties
 
           test -f android/gradlew
@@ -114,21 +124,24 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      # 10. ตรวจสอบไฟล์ APK และลายเซ็น
+      # 10. ตรวจสอบ APK และลายเซ็น
       - name: Verify APK
         shell: bash
         run: |
           set -e
+
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
             -name apksigner -type f | sort -V | tail -n 1)"
+
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
           AAPT="$(find "$ANDROID_HOME/build-tools" \
             -name aapt -type f | sort -V | tail -n 1)"
+
           test -n "$AAPT"
           "$AAPT" dump badging "$APK" | head -n 20
 
