@@ -1,4 +1,3 @@
-
 name: Build Flutter APK
 
 on:
@@ -156,21 +155,35 @@ jobs:
           set -e
 
           APK="build/app/outputs/flutter-apk/app-release.apk"
-          test -s "$APK"
+
+          if [ ! -s "$APK" ]; then
+            echo "ERROR: APK file not found."
+            exit 1
+          fi
+
+          echo "===== APK file ====="
+          ls -lh "$APK"
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
             -name apksigner -type f | sort -V | tail -n 1)"
 
-          test -n "$APKSIGNER"
+          if [ -z "$APKSIGNER" ]; then
+            echo "ERROR: apksigner not found."
+            exit 1
+          fi
+
+          echo "===== Verify APK signature ====="
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
+          echo "===== APK package information ====="
           AAPT="$(find "$ANDROID_HOME/build-tools" \
             -name aapt -type f | sort -V | tail -n 1)"
 
-          test -n "$AAPT"
-          "$AAPT" dump badging "$APK" | head -n 20
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging "$APK" | head -n 20
+          fi
 
-          ls -lh "$APK"
+          echo "APK verification passed."
 
       # 12. อัปโหลด APK
       - name: Upload APK
