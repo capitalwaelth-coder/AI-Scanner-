@@ -5,8 +5,9 @@ plugins {
 }
 
 android {
+    android {
     namespace "com.scannerbot"
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.scannerbot"
