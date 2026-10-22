@@ -3,33 +3,47 @@ name: Build Flutter APK
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      
-      # 1. ติดตั้ง Flutter SDK
-      - uses: subosito/flutter-action@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          flutter-version: '3.47.7'
-          channel: 'stable'
-          
-      # 2. เคลียร์ค่าแคชและไฟล์เก่าทั้งหมด
-      - run: flutter clean
-      
-      # 3. สร้างโครงสร้างโปรเจกต์ Android ที่ถูกต้องใหม่ทั้งหมด
-      - run: flutter create . --org com.scannerbot --project-name scannerbot --platforms=android
-      
-      # 4. ดึงแพ็กเกจ
-      - run: flutter pub get
-      
-      # 5. สั่งคอมไพล์สร้างไฟล์ APK
-      - run: flutter build apk --release
-      
-      # 6. อัปโหลดไฟล์ APK
-      - uses: actions/upload-artifact@v4
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          name: app-release
+          flutter-version: '3.24.0'
+          channel: stable
+          cache: false
+
+      - name: Check Flutter version
+        run: flutter --version
+
+      - name: Clean Flutter
+        run: flutter clean
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GOLD-PRO-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
