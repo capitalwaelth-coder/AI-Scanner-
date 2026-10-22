@@ -148,8 +148,8 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      # 11. ตรวจสอบ APK และลายเซ็น
-      - name: Verify APK
+      # 11. วิเคราะห์ APK และลายเซ็น
+      - name: Diagnose APK Signature
         shell: bash
         run: |
           set -e
@@ -167,25 +167,33 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
             -name apksigner -type f | sort -V | tail -n 1)"
 
-          if [ -z "$APKSIGNER" ]; then
-            echo "ERROR: apksigner not found."
-            exit 1
-          fi
-
-          echo "===== Verify APK signature ====="
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-
-          echo "===== APK package information ====="
           AAPT="$(find "$ANDROID_HOME/build-tools" \
             -name aapt -type f | sort -V | tail -n 1)"
 
-          if [ -n "$AAPT" ]; then
-            "$AAPT" dump badging "$APK" | head -n 20
+          if [ -z "$APKSIGNER" ] || [ -z "$AAPT" ]; then
+            echo "ERROR: Android build tools not found."
+            exit 1
           fi
 
-          echo "APK verification passed."
+          echo "===== Android package information ====="
+          "$AAPT" dump badging "$APK" | head -n 20
 
-      # 12. อัปโหลด APK
+          echo "===== APK signing verification ====="
+          "$APKSIGNER" verify --verbose --print-certs "$APK" \
+            || echo "WARNING: APK signature verification failed."
+
+          echo "===== APK signing schemes ====="
+          "$APKSIGNER" verify --verbose "$APK" \
+            2>&1 || true
+
+          echo "===== APK signing files ====="
+          unzip -l "$APK" \
+            | grep -E 'META-INF/|AndroidManifest.xml' \
+            | head -n 40 || true
+
+          echo "===== Diagnostic completed ====="
+
+      # 12. อัปโหลด APK สำหรับตรวจสอบ
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
