@@ -39,22 +39,45 @@ jobs:
           flutter --version
           dart --version
 
-      # 5. ล้างไฟล์ Build เก่า
+      # 5. สำรองไฟล์ Manifest เดิม
+      - name: Preserve Android manifest
+        run: |
+          if [ -f android/app/src/main/AndroidManifest.xml ]; then
+            cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+          fi
+
+      # 6. สร้างโครงสร้าง Android มาตรฐาน
+      - name: Generate Android scaffold
+        run: |
+          flutter create \
+            --platforms=android \
+            --org com.scannerbot \
+            --project-name scannerbot \
+            /tmp/scannerbot_template
+
+          mkdir -p android
+          cp -R /tmp/scannerbot_template/android/. android/
+
+          if [ -f /tmp/AndroidManifest.xml ]; then
+            cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          fi
+
+      # 7. ล้างไฟล์ Build เก่า
       - name: Clean project
         run: flutter clean
 
-      # 6. ดาวน์โหลดแพ็กเกจ
+      # 8. ดาวน์โหลดแพ็กเกจ
       - name: Get dependencies
         run: flutter pub get
 
-      # 7. สร้าง APK
+      # 9. สร้าง APK
       - name: Build release APK
         run: flutter build apk --release
 
-      # 8. อัปโหลด APK
+      # 10. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SCANNER BOT
+          name: SCANNER-BOT
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
