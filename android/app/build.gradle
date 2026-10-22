@@ -5,7 +5,6 @@ plugins {
 }
 
 android {
-    android {
     namespace "com.scannerbot"
     compileSdk 36
 
