@@ -9,12 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      # 1. ติดตั้ง Flutter SDK เวอร์ชันที่รองรับ
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
           channel: 'stable'
+          
+      # 2. สร้างโครงสร้างโปรเจกต์ Flutter ที่สมบูรณ์ชั่วคราวขึ้นมาเพื่อเอาไฟล์ระบบ Android
+      - run: flutter create . --org com.scannerbot --project-name scannerbot --platforms=android
+      
+      # 3. ดึงแพ็กเกจทั้งหมด
       - run: flutter pub get
+      
+      # 4. สั่งคอมไพล์สร้างไฟล์ APK
       - run: flutter build apk --release
+      
+      # 5. อัปโหลดไฟล์ APK ให้เราดาวน์โหลด
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
