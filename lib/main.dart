@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'scanner_screen.dart'; // นำเข้าหน้าจอ ScannerScreen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,44 +45,8 @@ class ScannerBotApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-// หน้าจอหลักชั่วคราวก่อนผูกระบบ AI Scanner
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('SCANNER BOT - AI Trading'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // แสดงโลโก้น้องนักบินอวกาศจาก Assets
-            Image.asset(
-              'assets/images/8.png',
-              width: 120,
-              height: 120,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'ยินดีต้อนรับสู่ระบบสแกนกราฟ AI',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'พร้อมเชื่อมต่อระบบวิเคราะห์กราฟแล้ว',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
+      // กำหนดให้เปิดแอปมาเจอหน้าจอสแกนกราฟ AI ทันที
+      home: const ScannerScreen(),
     );
   }
 }
