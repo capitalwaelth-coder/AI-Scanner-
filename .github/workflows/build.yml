@@ -40,8 +40,7 @@ jobs:
           channel: stable
           cache: false
 
-
-      # 4. ตรวจสอบไฟล์เดิม
+      # 4. ตรวจสอบไฟล์โปรเจกต์
       - name: Validate project
         run: |
           set -e
@@ -51,16 +50,17 @@ jobs:
           test -f assets/images/8.jpg
           echo "Project files verified."
 
-      # 5. สร้าง Android Gradle Wrapper เมื่อไฟล์ขาด
+      # 5. ซ่อม Gradle Wrapper หากไฟล์ขาด
       - name: Repair Android Gradle Wrapper
         shell: bash
         run: |
           set -e
 
           if [ ! -f android/gradlew ] || \
-             [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+             [ ! -f android/gradle/wrapper/gradle-wrapper.properties ] || \
+             [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
 
-            echo "Gradle Wrapper missing. Generating temporary Android template."
+            echo "Generating temporary Android template."
 
             flutter create \
               --platforms=android \
@@ -69,9 +69,11 @@ jobs:
               /tmp/scannerbot_template
 
             mkdir -p android/gradle/wrapper
+
             cp /tmp/scannerbot_template/android/gradlew android/gradlew
             cp /tmp/scannerbot_template/android/gradlew.bat android/gradlew.bat
-            cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+            cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar \
+              android/gradle/wrapper/gradle-wrapper.jar
 
             if [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
               cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.properties \
@@ -81,18 +83,26 @@ jobs:
 
           chmod +x android/gradlew
 
+          # กำหนด Gradle Wrapper เป็น 8.13
+          sed -i -E \
+            's#gradle-[0-9][^/]*-(all|bin)\.zip#gradle-8.13-\1.zip#' \
+            android/gradle/wrapper/gradle-wrapper.properties
+
           test -f android/gradlew
           test -f android/gradle/wrapper/gradle-wrapper.jar
           test -f android/gradle/wrapper/gradle-wrapper.properties
 
-          echo "Gradle Wrapper files are ready."
+          echo "===== Gradle Wrapper ====="
+          cat android/gradle/wrapper/gradle-wrapper.properties
 
+          cd android
+          ./gradlew --version
 
       # 6. ล้างไฟล์ Build เก่า
       - name: Clean project
         run: flutter clean
 
-      # 7. ดาวน์โหลดแพ็กเกจ
+      # 7. ดาวน์โหลด dependencies
       - name: Get dependencies
         run: flutter pub get
 
@@ -104,7 +114,7 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      # 10. ตรวจสอบ APK และลายเซ็น
+      # 10. ตรวจสอบไฟล์ APK และลายเซ็น
       - name: Verify APK
         shell: bash
         run: |
