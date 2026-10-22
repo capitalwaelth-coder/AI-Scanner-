@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. ดาวน์โหลดโค้ดเดิมจาก GitHub
+      # 1. ดาวน์โหลดโค้ดจาก GitHub
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -39,14 +39,14 @@ jobs:
           flutter --version
           dart --version
 
-      # 5. สำรองไฟล์ Manifest เดิม
+      # 5. สำรอง Manifest เดิม
       - name: Preserve Android manifest
         run: |
           if [ -f android/app/src/main/AndroidManifest.xml ]; then
             cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
           fi
 
-      # 6. สร้างโครงสร้าง Android มาตรฐาน
+      # 6. สร้างโครงสร้าง Android
       - name: Generate Android scaffold
         run: |
           flutter create \
@@ -74,7 +74,22 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      # 10. อัปโหลด APK
+      # 10. ตรวจสอบว่า APK มีอยู่จริง
+      - name: Check APK file
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+
+      # 11. ตรวจสอบลายเซ็น APK
+      - name: Verify APK signature
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      # 12. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
