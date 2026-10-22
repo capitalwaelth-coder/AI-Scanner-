@@ -83,9 +83,9 @@ jobs:
 
           chmod +x android/gradlew
 
-          # กำหนด Gradle Wrapper เป็น 8.13
+          # กำหนด Gradle Wrapper เป็น 8.14
           sed -i -E \
-            's#gradle-[0-9][^/]*-(all|bin)\.zip#gradle-8.13-\1.zip#' \
+            's#gradle-[0-9][^/]*-(all|bin)\.zip#gradle-8.14-\1.zip#' \
             android/gradle/wrapper/gradle-wrapper.properties
 
           test -f android/gradlew
