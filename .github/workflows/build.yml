@@ -85,7 +85,6 @@ jobs:
 
           chmod +x android/gradlew
 
-          # เขียนไฟล์ properties ใหม่ทุกครั้ง
           cat > "$WRAPPER_DIR/gradle-wrapper.properties" <<'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -96,7 +95,6 @@ jobs:
           zipStorePath=wrapper/dists
           EOF
 
-          # ตรวจสอบไฟล์และค่าที่กำหนด
           test -f android/gradlew
           test -f "$WRAPPER_DIR/gradle-wrapper.jar"
           test -f "$WRAPPER_DIR/gradle-wrapper.properties"
@@ -105,13 +103,9 @@ jobs:
           test "$(grep -c '^distributionPath=' "$WRAPPER_DIR/gradle-wrapper.properties")" -eq 1
           test "$(grep -c '^distributionUrl=' "$WRAPPER_DIR/gradle-wrapper.properties")" -eq 1
 
-          grep -q 'gradle-8.14-bin.zip' \
-            "$WRAPPER_DIR/gradle-wrapper.properties"
-
           echo "===== Gradle Wrapper ====="
           cat "$WRAPPER_DIR/gradle-wrapper.properties"
 
-          # ตรวจสอบ Gradle
           cd android
           ./gradlew --version
 
@@ -119,19 +113,43 @@ jobs:
       - name: Clean project
         run: flutter clean
 
-      # 7. ดาวน์โหลด dependencies
+      # 7. สร้างธีม Android ที่ Manifest เรียกใช้
+      - name: Fix Android Launch Themes
+        shell: bash
+        run: |
+          set -e
+
+          RES_DIR="android/app/src/main/res"
+          mkdir -p "$RES_DIR/values"
+
+          cat > "$RES_DIR/values/styles.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+                  <item name="android:windowBackground">@android:color/white</item>
+              </style>
+              <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+                  <item name="android:windowBackground">?android:colorBackground</item>
+              </style>
+          </resources>
+          EOF
+
+          echo "Created LaunchTheme and NormalTheme."
+          cat "$RES_DIR/values/styles.xml"
+
+      # 8. ดาวน์โหลด dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # 8. สร้างไอคอนจากรูป 8.jpg
+      # 9. สร้างไอคอนจากรูป 8.jpg
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
 
-      # 9. สร้าง APK
+      # 10. สร้าง APK
       - name: Build release APK
         run: flutter build apk --release
 
-      # 10. ตรวจสอบ APK และลายเซ็น
+      # 11. ตรวจสอบ APK และลายเซ็น
       - name: Verify APK
         shell: bash
         run: |
@@ -154,7 +172,7 @@ jobs:
 
           ls -lh "$APK"
 
-      # 11. อัปโหลด APK
+      # 12. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
