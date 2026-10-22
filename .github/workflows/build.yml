@@ -2,7 +2,8 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -13,37 +14,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. ดาวน์โหลดโค้ดเดิมจาก GitHub
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. ติดตั้ง Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # 3. ติดตั้ง Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.47.7'
           channel: stable
           cache: false
 
-      - name: Check Flutter version
-        run: flutter --version
+      # 4. ตรวจสอบเวอร์ชัน
+      - name: Check Flutter and Dart
+        run: |
+          flutter --version
+          dart --version
 
-      - name: Clean Flutter
+      # 5. ล้างไฟล์ Build เก่า
+      - name: Clean project
         run: flutter clean
 
+      # 6. ดาวน์โหลดแพ็กเกจ
       - name: Get dependencies
         run: flutter pub get
 
+      # 7. สร้าง APK
       - name: Build release APK
         run: flutter build apk --release
 
+      # 8. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GOLD-PRO-APK
+          name: SCANNER BOT
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
