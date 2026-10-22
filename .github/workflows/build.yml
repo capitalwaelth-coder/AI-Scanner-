@@ -50,17 +50,42 @@ jobs:
           test -f assets/images/8.jpg
           echo "Project files verified."
 
-      # 5. ตรวจสอบ Android และ Gradle Wrapper
-      - name: Check Android setup
+      # 5. สร้าง Android Gradle Wrapper เมื่อไฟล์ขาด
+      - name: Repair Android Gradle Wrapper
+        shell: bash
         run: |
           set -e
+
           if [ ! -f android/gradlew ] || \
              [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
-            echo "ERROR: Android Gradle Wrapper is missing."
-            echo "No Android files were overwritten."
-            exit 1
+
+            echo "Gradle Wrapper missing. Generating temporary Android template."
+
+            flutter create \
+              --platforms=android \
+              --org com.scannerbot \
+              --project-name scannerbot \
+              /tmp/scannerbot_template
+
+            mkdir -p android/gradle/wrapper
+            cp /tmp/scannerbot_template/android/gradlew android/gradlew
+            cp /tmp/scannerbot_template/android/gradlew.bat android/gradlew.bat
+            cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+
+            if [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+              cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.properties \
+                android/gradle/wrapper/gradle-wrapper.properties
+            fi
           fi
+
           chmod +x android/gradlew
+
+          test -f android/gradlew
+          test -f android/gradle/wrapper/gradle-wrapper.jar
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+
+          echo "Gradle Wrapper files are ready."
+
 
       # 6. ล้างไฟล์ Build เก่า
       - name: Clean project
