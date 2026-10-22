@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/**'
+      - 'lib/**'
+      - 'android/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'assets/**'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. ดาวน์โหลดโค้ดจาก GitHub
+      # 1. ดาวน์โหลดโค้ด
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -29,94 +36,69 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.7'
+          flutter-version: '3.24.0'
           channel: stable
           cache: false
 
-      # 4. ตรวจสอบเวอร์ชัน
-      - name: Check Flutter and Dart
+      # 4. ตรวจสอบไฟล์เดิม
+      - name: Validate project
         run: |
-          flutter --version
-          dart --version
+          set -e
+          test -f pubspec.yaml
+          test -f lib/main.dart
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f assets/images/8.jpg
+          echo "Project files verified."
 
-      # 5. สำรอง Manifest เดิม
-      - name: Preserve Android manifest
+      # 5. ตรวจสอบ Android และ Gradle Wrapper
+      - name: Check Android setup
         run: |
-          if [ -f android/app/src/main/AndroidManifest.xml ]; then
-            cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+          set -e
+          if [ ! -f android/gradlew ] || \
+             [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            echo "ERROR: Android Gradle Wrapper is missing."
+            echo "No Android files were overwritten."
+            exit 1
           fi
+          chmod +x android/gradlew
 
-      # 6. สร้างโครงสร้าง Android
-      - name: Generate Android scaffold
-        run: |
-          flutter create \
-            --platforms=android \
-            --org com.scannerbot \
-            --project-name scannerbot \
-            /tmp/scannerbot_template
-
-          mkdir -p android
-          cp -R /tmp/scannerbot_template/android/. android/
-
-          if [ -f /tmp/AndroidManifest.xml ]; then
-            cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          fi
-
-      # 7. ล้างไฟล์ Build เก่า
+      # 6. ล้างไฟล์ Build เก่า
       - name: Clean project
         run: flutter clean
 
-      # 8. ดาวน์โหลดแพ็กเกจ
+      # 7. ดาวน์โหลดแพ็กเกจ
       - name: Get dependencies
         run: flutter pub get
 
-      # 9. ตรวจสอบรูปและติดตั้งเครื่องมือสร้างไอคอน
-      - name: Install launcher icon generator
-        run: |
-          test -f assets/images/8.jpg
-          dart pub global activate flutter_launcher_icons
+      # 8. สร้างไอคอนจากรูป 8.jpg
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
 
-      # 10. สร้างไอคอนจากรูป 8.jpg
-      - name: Generate app launcher icons
-        run: |
-          dart pub global run flutter_launcher_icons:main
-
-      # 11. สร้าง APK
+      # 9. สร้าง APK
       - name: Build release APK
         run: flutter build apk --release
 
-      # 12. ตรวจสอบไฟล์ APK
-      - name: Check APK file
+      # 10. ตรวจสอบ APK และลายเซ็น
+      - name: Verify APK
+        shell: bash
         run: |
+          set -e
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
-          ls -lh "$APK"
 
-      # 13. ตรวจสอบลายเซ็นและข้อมูล APK
-      - name: Diagnose APK signature
-        run: |
-          APK="build/app/outputs/flutter-apk/app-release.apk"
-
-          echo "===== APK FILE ====="
-          ls -lh "$APK"
-          file "$APK"
-
-          echo "===== ANDROID BUILD TOOLS ====="
-          find "$ANDROID_HOME/build-tools" -name apksigner -type f
-
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
+            -name apksigner -type f | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-          echo "===== APK SIGNATURE CHECK ====="
-          "$APKSIGNER" verify --verbose --print-certs "$APK" || true
+          AAPT="$(find "$ANDROID_HOME/build-tools" \
+            -name aapt -type f | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          "$AAPT" dump badging "$APK" | head -n 20
 
-          echo "===== APK PACKAGE INFO ====="
-          AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)"
-          if [ -n "$AAPT" ]; then
-            "$AAPT" dump badging "$APK" | head -n 20
-          fi
+          ls -lh "$APK"
 
-      # 14. อัปโหลด APK
+      # 11. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
