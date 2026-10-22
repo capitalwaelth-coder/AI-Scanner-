@@ -10,22 +10,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # 1. ติดตั้ง Flutter SDK เวอร์ชันที่รองรับ
+      # 1. ติดตั้ง Flutter SDK
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
           channel: 'stable'
           
-      # 2. สร้างโครงสร้างโปรเจกต์ Flutter ที่สมบูรณ์ชั่วคราวขึ้นมาเพื่อเอาไฟล์ระบบ Android
+      # 2. เคลียร์ค่าแคชและไฟล์เก่าทั้งหมด
+      - run: flutter clean
+      
+      # 3. สร้างโครงสร้างโปรเจกต์ Android ที่ถูกต้องใหม่ทั้งหมด
       - run: flutter create . --org com.scannerbot --project-name scannerbot --platforms=android
       
-      # 3. ดึงแพ็กเกจทั้งหมด
+      # 4. ดึงแพ็กเกจ
       - run: flutter pub get
       
-      # 4. สั่งคอมไพล์สร้างไฟล์ APK
+      # 5. สั่งคอมไพล์สร้างไฟล์ APK
       - run: flutter build apk --release
       
-      # 5. อัปโหลดไฟล์ APK ให้เราดาวน์โหลด
+      # 6. อัปโหลดไฟล์ APK
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
