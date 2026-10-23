@@ -1,5 +1,5 @@
 name: Build Flutter APK
- 
+
 on:
   push:
     branches:
@@ -45,14 +45,25 @@ jobs:
         shell: bash
         run: |
           set -e
+
           test -f pubspec.yaml
           test -f lib/main.dart
           test -f android/app/src/main/AndroidManifest.xml
           test -f assets/images/8.jpg
+
+          echo "===== Flutter version ====="
+          flutter --version
+
+          echo "===== Android application configuration ====="
+          grep -nE 'namespace|applicationId|minSdk|targetSdk' \
+            android/app/build.gradle \
+            android/app/build.gradle.kts 2>/dev/null || true
+
           echo "Project files verified."
 
-      # 5. ซ่อม Gradle Wrapper
-      - name: Repair Android Gradle Wrapper
+      # 5. ตรวจสอบ Gradle Wrapper
+      # ไม่เขียนทับ Wrapper เดิมถ้ามีไฟล์ครบ
+      - name: Check Android Gradle Wrapper
         shell: bash
         run: |
           set -e
@@ -60,9 +71,11 @@ jobs:
           WRAPPER_DIR="android/gradle/wrapper"
 
           if [ ! -f android/gradlew ] || \
-             [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ]; then
+             [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ] || \
+             [ ! -f "$WRAPPER_DIR/gradle-wrapper.properties" ]; then
 
-            echo "Generating temporary Android template."
+            echo "Gradle Wrapper is incomplete."
+            echo "Generating wrapper files from Flutter Android template."
 
             flutter create \
               --platforms=android \
@@ -80,67 +93,44 @@ jobs:
 
             cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar \
               "$WRAPPER_DIR/gradle-wrapper.jar"
+
+            # สร้าง properties จาก Template เฉพาะกรณีที่ไม่มีไฟล์
+            if [ ! -f "$WRAPPER_DIR/gradle-wrapper.properties" ]; then
+              cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.properties \
+                "$WRAPPER_DIR/gradle-wrapper.properties"
+            fi
           fi
 
           chmod +x android/gradlew
 
-          cat > "$WRAPPER_DIR/gradle-wrapper.properties" <<'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.14-bin.zip
-          networkTimeout=10000
-          validateDistributionUrl=true
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-
-          test -f android/gradlew
-          test -f "$WRAPPER_DIR/gradle-wrapper.jar"
-          test -f "$WRAPPER_DIR/gradle-wrapper.properties"
-
-          test "$(grep -c '^distributionBase=' "$WRAPPER_DIR/gradle-wrapper.properties")" -eq 1
-          test "$(grep -c '^distributionPath=' "$WRAPPER_DIR/gradle-wrapper.properties")" -eq 1
-          test "$(grep -c '^distributionUrl=' "$WRAPPER_DIR/gradle-wrapper.properties")" -eq 1
-
-          echo "===== Gradle Wrapper ====="
-          cat "$WRAPPER_DIR/gradle-wrapper.properties"
-
           cd android
           ./gradlew --version
 
-      # 6. ล้างไฟล์ Build เก่า
-      - name: Clean project
-        run: flutter clean
-
-      # 7. สร้างธีม Android ที่ Manifest เรียกใช้
-      - name: Fix Android Launch Themes
+      # 6. เปิดใช้ AndroidX โดยเก็บค่าที่มีอยู่
+      - name: Ensure AndroidX
         shell: bash
         run: |
           set -e
 
-          RES_DIR="android/app/src/main/res"
-          mkdir -p "$RES_DIR/values"
+          FILE="android/gradle.properties"
+          touch "$FILE"
 
-          cat > "$RES_DIR/values/styles.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
-                  <item name="android:windowBackground">@android:color/white</item>
-              </style>
-              <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-                  <item name="android:windowBackground">?android:colorBackground</item>
-              </style>
-          </resources>
-          EOF
+          if ! grep -qE '^[[:space:]]*android\.useAndroidX=' "$FILE"; then
+            echo 'android.useAndroidX=true' >> "$FILE"
+          fi
 
-          echo "Created LaunchTheme and NormalTheme."
-          cat "$RES_DIR/values/styles.xml"
+          echo "===== Gradle properties ====="
+          cat "$FILE"
 
-      # 8. ดาวน์โหลด dependencies
+      # 7. ล้างไฟล์ Build เก่า
+      - name: Clean project
+        run: flutter clean
+
+      # 8. ดาวน์โหลด Dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # 9. สร้างไอคอนจากรูป 8.jpg
+      # 9. สร้างไอคอนแอป
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
 
@@ -148,21 +138,19 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      # 11. วิเคราะห์ APK และลายเซ็น
-      - name: Diagnose APK Signature
+      # 11. ตรวจสอบ APK และข้อมูลแพ็กเกจ
+      - name: Diagnose APK
         shell: bash
         run: |
           set -e
 
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          if [ ! -s "$APK" ]; then
-            echo "ERROR: APK file not found."
-            exit 1
-          fi
+          test -s "$APK"
 
           echo "===== APK file ====="
           ls -lh "$APK"
+          sha256sum "$APK"
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
             -name apksigner -type f | sort -V | tail -n 1)"
@@ -175,28 +163,22 @@ jobs:
             exit 1
           fi
 
-          echo "===== Android package information ====="
+          echo "===== Package information ====="
           "$AAPT" dump badging "$APK" | head -n 20
 
-          echo "===== APK signing verification ====="
-          "$APKSIGNER" verify --verbose --print-certs "$APK" \
-            || echo "WARNING: APK signature verification failed."
+          echo "===== Verify APK signature ====="
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
           echo "===== APK signing schemes ====="
-          "$APKSIGNER" verify --verbose "$APK" \
-            2>&1 || true
+          "$APKSIGNER" verify --verbose "$APK"
 
-          echo "===== APK signing files ====="
-          unzip -l "$APK" \
-            | grep -E 'META-INF/|AndroidManifest.xml' \
-            | head -n 40 || true
+          echo "APK passed signature verification."
 
-          echo "===== Diagnostic completed ====="
-
-      # 12. อัปโหลด APK สำหรับตรวจสอบ
+      # 12. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: AI-SCANNER
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 7
