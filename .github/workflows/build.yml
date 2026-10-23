@@ -72,7 +72,6 @@ jobs:
 
           mkdir -p "$WRAPPER_DIR"
 
-          # สร้าง Wrapper จาก Template เฉพาะเมื่อไฟล์ขาด
           if [ ! -f android/gradlew ] || \
              [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ] || \
              [ ! -f "$PROPERTIES" ]; then
@@ -138,7 +137,7 @@ jobs:
       - name: Clean project
         run: flutter clean
 
-      # 8. สร้างธีมที่ AndroidManifest.xml เรียกใช้
+      # 8. สร้างธีม Android เมื่อไม่มีไฟล์เดิม
       - name: Ensure Android Launch Themes
         shell: bash
         run: |
@@ -150,7 +149,6 @@ jobs:
 
           mkdir -p "$VALUES_DIR"
 
-          # สร้างไฟล์ใหม่เมื่อไม่มีไฟล์เดิม
           if [ ! -f "$STYLES" ]; then
             cat > "$STYLES" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -184,7 +182,7 @@ jobs:
         run: flutter build apk --release
 
       # 12. ตรวจสอบ APK และลายเซ็น
-      - name: Diagnose APK
+      - name: Diagnose APK signature
         shell: bash
         run: |
           set -e
@@ -197,16 +195,31 @@ jobs:
           ls -lh "$APK"
           sha256sum "$APK"
 
+          echo "===== Check APK archive ====="
+          unzip -t "$APK" | tail -n 3
+
+          echo "===== Signature files ====="
+          unzip -Z1 "$APK" | grep -E '^META-INF/' || true
+
+          echo "===== Find Android build tools ====="
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
-            -name apksigner -type f | sort -V | tail -n 1)"
+            -type f -name apksigner | sort -V | tail -n 1)"
 
           AAPT="$(find "$ANDROID_HOME/build-tools" \
-            -name aapt -type f | sort -V | tail -n 1)"
+            -type f -name aapt | sort -V | tail -n 1)"
 
-          if [ -z "$APKSIGNER" ] || [ -z "$AAPT" ]; then
-            echo "ERROR: Android build tools not found."
+          if [ -z "$APKSIGNER" ]; then
+            echo "ERROR: apksigner not found."
             exit 1
           fi
+
+          if [ -z "$AAPT" ]; then
+            echo "ERROR: aapt not found."
+            exit 1
+          fi
+
+          echo "===== apksigner version ====="
+          "$APKSIGNER" version
 
           echo "===== Package information ====="
           "$AAPT" dump badging "$APK" | head -n 20
@@ -216,7 +229,7 @@ jobs:
 
           echo "APK passed signature verification."
 
-      # 13. อัปโหลด APK
+      # 13. อัปโหลด APK เฉพาะเมื่อขั้นตอนก่อนหน้าผ่าน
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
