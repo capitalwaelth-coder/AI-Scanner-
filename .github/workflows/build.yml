@@ -54,13 +54,14 @@ jobs:
           echo "===== Flutter version ====="
           flutter --version
 
-          echo "===== Android application configuration ====="
+          echo "===== Android configuration ====="
           grep -nE 'namespace|applicationId|minSdk|targetSdk' \
             android/app/build.gradle \
             android/app/build.gradle.kts 2>/dev/null || true
 
           echo "Project files verified."
-   # 5. ตรวจสอบและซ่อม Gradle Wrapper
+
+      # 5. ตรวจสอบ Gradle Wrapper
       - name: Repair Android Gradle Wrapper
         shell: bash
         run: |
@@ -71,47 +72,54 @@ jobs:
 
           mkdir -p "$WRAPPER_DIR"
 
-          if [ ! -f "$PROPERTIES" ]; then
-            echo "ERROR: gradle-wrapper.properties is missing."
-            echo "Please restore this file from the original project."
-            exit 1
-          fi
+          # สร้าง Wrapper จาก Template เฉพาะเมื่อไฟล์ขาด
+          if [ ! -f android/gradlew ] || \
+             [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ] || \
+             [ ! -f "$PROPERTIES" ]; then
 
-          # อ่านเวอร์ชัน Gradle จากการตั้งค่าของโปรเจกต์
-          GRADLE_URL=$(grep '^distributionUrl=' "$PROPERTIES" \
-            | tail -n 1 \
-            | cut -d '=' -f 2- \
-            | sed 's/\\:/:/g')
+            echo "Generating Gradle Wrapper from Flutter template."
 
-          if [ -z "$GRADLE_URL" ]; then
-            echo "ERROR: Gradle distribution URL not found."
-            exit 1
-          fi
+            flutter create \
+              --platforms=android \
+              --org com.scannerbot \
+              --project-name scannerbot \
+              /tmp/scannerbot_template
 
-          echo "Gradle URL: $GRADLE_URL"
+            if [ ! -f android/gradlew ]; then
+              cp /tmp/scannerbot_template/android/gradlew \
+                android/gradlew
+            fi
 
-          # ดาวน์โหลด Gradle Wrapper JAR จาก Gradle repository
-          if [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ]; then
-            curl -fL --retry 3 \
-              https://raw.githubusercontent.com/gradle/gradle/v8.14.0/gradle/wrapper/gradle-wrapper.jar \
-              -o "$WRAPPER_DIR/gradle-wrapper.jar"
-          fi
+            if [ ! -f android/gradlew.bat ]; then
+              cp /tmp/scannerbot_template/android/gradlew.bat \
+                android/gradlew.bat
+            fi
 
-          # กู้สคริปต์ Wrapper จาก Template หากไม่มี
-          if [ ! -f android/gradlew ]; then
-            curl -fL --retry 3 \
-              https://raw.githubusercontent.com/gradle/gradle/v8.14.0/gradlew \
-              -o android/gradlew
+            if [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ]; then
+              cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar \
+                "$WRAPPER_DIR/gradle-wrapper.jar"
+            fi
+
+            if [ ! -f "$PROPERTIES" ]; then
+              cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.properties \
+                "$PROPERTIES"
+            fi
           fi
 
           chmod +x android/gradlew
 
-          test -s "$WRAPPER_DIR/gradle-wrapper.jar"
           test -s android/gradlew
+          test -s "$WRAPPER_DIR/gradle-wrapper.jar"
+          test -s "$PROPERTIES"
 
-          echo "Wrapper files checked."
-          
-      # 6. เปิดใช้ AndroidX โดยเก็บค่าที่มีอยู่
+          echo "===== Gradle Wrapper configuration ====="
+          cat "$PROPERTIES"
+
+          echo "===== Gradle version ====="
+          cd android
+          ./gradlew --version
+
+      # 6. เปิดใช้ AndroidX
       - name: Ensure AndroidX
         shell: bash
         run: |
@@ -124,26 +132,58 @@ jobs:
             echo 'android.useAndroidX=true' >> "$FILE"
           fi
 
-          echo "===== Gradle properties ====="
-          cat "$FILE"
+          echo "AndroidX configured."
 
       # 7. ล้างไฟล์ Build เก่า
       - name: Clean project
         run: flutter clean
 
-      # 8. ดาวน์โหลด Dependencies
+      # 8. สร้างธีมที่ AndroidManifest.xml เรียกใช้
+      - name: Ensure Android Launch Themes
+        shell: bash
+        run: |
+          set -e
+
+          RES_DIR="android/app/src/main/res"
+          VALUES_DIR="$RES_DIR/values"
+          STYLES="$VALUES_DIR/styles.xml"
+
+          mkdir -p "$VALUES_DIR"
+
+          # สร้างไฟล์ใหม่เมื่อไม่มีไฟล์เดิม
+          if [ ! -f "$STYLES" ]; then
+            cat > "$STYLES" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+                  <item name="android:windowBackground">@android:color/white</item>
+              </style>
+              <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+                  <item name="android:windowBackground">?android:colorBackground</item>
+              </style>
+          </resources>
+          EOF
+          fi
+
+          echo "===== Verify theme resources ====="
+          cat "$STYLES"
+
+          grep -q 'name="LaunchTheme"' "$STYLES"
+          grep -q 'name="NormalTheme"' "$STYLES"
+
+      # 9. ดาวน์โหลด Dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # 9. สร้างไอคอนแอป
+      # 10. สร้างไอคอนแอป
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
 
-      # 10. สร้าง APK
+      # 11. สร้าง APK
       - name: Build release APK
         run: flutter build apk --release
 
-      # 11. ตรวจสอบ APK และข้อมูลแพ็กเกจ
+      # 12. ตรวจสอบ APK และลายเซ็น
       - name: Diagnose APK
         shell: bash
         run: |
@@ -174,12 +214,9 @@ jobs:
           echo "===== Verify APK signature ====="
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-          echo "===== APK signing schemes ====="
-          "$APKSIGNER" verify --verbose "$APK"
-
           echo "APK passed signature verification."
 
-      # 12. อัปโหลด APK
+      # 13. อัปโหลด APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
