@@ -60,9 +60,8 @@ jobs:
             android/app/build.gradle.kts 2>/dev/null || true
 
           echo "Project files verified."
-
-      # 5. ตรวจสอบและซ่อม Gradle Wrapper
-      - name: Check Android Gradle Wrapper
+   # 5. ตรวจสอบและซ่อม Gradle Wrapper
+      - name: Repair Android Gradle Wrapper
         shell: bash
         run: |
           set -e
@@ -72,23 +71,45 @@ jobs:
 
           mkdir -p "$WRAPPER_DIR"
 
-          if [ ! -f android/gradlew ] || \
-             [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ] || \
-             [ ! -f "$PROPERTIES" ]; then
-
-            echo "ERROR: Gradle Wrapper files are missing."
-            echo "Please restore the original Android Gradle Wrapper files."
+          if [ ! -f "$PROPERTIES" ]; then
+            echo "ERROR: gradle-wrapper.properties is missing."
+            echo "Please restore this file from the original project."
             exit 1
+          fi
+
+          # อ่านเวอร์ชัน Gradle จากการตั้งค่าของโปรเจกต์
+          GRADLE_URL=$(grep '^distributionUrl=' "$PROPERTIES" \
+            | tail -n 1 \
+            | cut -d '=' -f 2- \
+            | sed 's/\\:/:/g')
+
+          if [ -z "$GRADLE_URL" ]; then
+            echo "ERROR: Gradle distribution URL not found."
+            exit 1
+          fi
+
+          echo "Gradle URL: $GRADLE_URL"
+
+          # ดาวน์โหลด Gradle Wrapper JAR จาก Gradle repository
+          if [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ]; then
+            curl -fL --retry 3 \
+              https://raw.githubusercontent.com/gradle/gradle/v8.14.0/gradle/wrapper/gradle-wrapper.jar \
+              -o "$WRAPPER_DIR/gradle-wrapper.jar"
+          fi
+
+          # กู้สคริปต์ Wrapper จาก Template หากไม่มี
+          if [ ! -f android/gradlew ]; then
+            curl -fL --retry 3 \
+              https://raw.githubusercontent.com/gradle/gradle/v8.14.0/gradlew \
+              -o android/gradlew
           fi
 
           chmod +x android/gradlew
 
-          echo "===== Current Gradle Wrapper ====="
-          cat "$PROPERTIES"
+          test -s "$WRAPPER_DIR/gradle-wrapper.jar"
+          test -s android/gradlew
 
-          echo "===== Verify Gradle Wrapper ====="
-          cd android
-          ./gradlew --version
+          echo "Wrapper files checked."
           
       # 6. เปิดใช้ AndroidX โดยเก็บค่าที่มีอยู่
       - name: Ensure AndroidX
