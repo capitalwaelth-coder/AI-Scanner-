@@ -61,51 +61,35 @@ jobs:
 
           echo "Project files verified."
 
-      # 5. ตรวจสอบ Gradle Wrapper
-      # ไม่เขียนทับ Wrapper เดิมถ้ามีไฟล์ครบ
+      # 5. ตรวจสอบและซ่อม Gradle Wrapper
       - name: Check Android Gradle Wrapper
         shell: bash
         run: |
           set -e
 
           WRAPPER_DIR="android/gradle/wrapper"
+          PROPERTIES="$WRAPPER_DIR/gradle-wrapper.properties"
+
+          mkdir -p "$WRAPPER_DIR"
 
           if [ ! -f android/gradlew ] || \
              [ ! -f "$WRAPPER_DIR/gradle-wrapper.jar" ] || \
-             [ ! -f "$WRAPPER_DIR/gradle-wrapper.properties" ]; then
+             [ ! -f "$PROPERTIES" ]; then
 
-            echo "Gradle Wrapper is incomplete."
-            echo "Generating wrapper files from Flutter Android template."
-
-            flutter create \
-              --platforms=android \
-              --org com.scannerbot \
-              --project-name scannerbot \
-              /tmp/scannerbot_template
-
-            mkdir -p "$WRAPPER_DIR"
-
-            cp /tmp/scannerbot_template/android/gradlew \
-              android/gradlew
-
-            cp /tmp/scannerbot_template/android/gradlew.bat \
-              android/gradlew.bat
-
-            cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.jar \
-              "$WRAPPER_DIR/gradle-wrapper.jar"
-
-            # สร้าง properties จาก Template เฉพาะกรณีที่ไม่มีไฟล์
-            if [ ! -f "$WRAPPER_DIR/gradle-wrapper.properties" ]; then
-              cp /tmp/scannerbot_template/android/gradle/wrapper/gradle-wrapper.properties \
-                "$WRAPPER_DIR/gradle-wrapper.properties"
-            fi
+            echo "ERROR: Gradle Wrapper files are missing."
+            echo "Please restore the original Android Gradle Wrapper files."
+            exit 1
           fi
 
           chmod +x android/gradlew
 
+          echo "===== Current Gradle Wrapper ====="
+          cat "$PROPERTIES"
+
+          echo "===== Verify Gradle Wrapper ====="
           cd android
           ./gradlew --version
-
+          
       # 6. เปิดใช้ AndroidX โดยเก็บค่าที่มีอยู่
       - name: Ensure AndroidX
         shell: bash
